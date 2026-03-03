@@ -7,7 +7,7 @@ explicit and allows the internal registry types to evolve independently.
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +38,25 @@ class GlyphCreateRequest(BaseModel):
 
 
 class GlyphUpdateRequest(BaseModel):
-    description: str
+    model_config = ConfigDict(extra="forbid")
+
+    code: Optional[str] = Field(None, min_length=1, max_length=64)
+    description: Optional[str] = None
+    category: Optional[str] = None
+    geometry_payload:  Optional[GlyphPayloadModel] = None
+    harmonic_payload:  Optional[GlyphPayloadModel] = None
+    protocol_payload:  Optional[GlyphPayloadModel] = None
+    version: Optional[str] = None
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def validate_category(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        valid = {"GEOMETRY", "HARMONIC", "PROTOSTATE", "STORYEVENT", "SPECIAL"}
+        if v.upper() not in valid:
+            raise ValueError(f"category must be one of {valid}")
+        return v.upper()
 
 
 class GlyphResponse(BaseModel):

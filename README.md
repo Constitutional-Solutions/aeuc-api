@@ -9,7 +9,7 @@ Part of the **Constitutional-Solutions / AEUC open-source stack**:
 | 0 — Glyph substrate | [`glyph-registry`](https://github.com/Constitutional-Solutions/glyph-registry) |
 | 1 — Vector field | [`aeuc-vector-db`](https://github.com/Constitutional-Solutions/aeuc-vector-db) |
 | 2 — REST API ← **you are here** | `aeuc-api` |
-| 3 — Harmonic engine | `aeuc-harmonic-engine` *(coming)* |
+| 3 — Harmonic engine | [`aeuc-harmonic-engine`](https://github.com/Constitutional-Solutions/aeuc-harmonic-engine) |
 
 ## Quick Start
 
