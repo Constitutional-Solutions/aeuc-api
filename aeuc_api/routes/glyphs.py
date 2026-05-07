@@ -16,6 +16,8 @@ from ..models import (
 
 router = APIRouter()
 
+_PAYLOAD_FIELDS = frozenset({"geometry_payload", "harmonic_payload", "protocol_payload"})
+
 
 def _to_response(g: Glyph144k) -> GlyphResponse:
     return GlyphResponse(
@@ -85,16 +87,24 @@ async def get_glyph(
     return _to_response(g)
 
 
-@router.patch("/{glyph_id}", response_model=GlyphResponse, summary="Update glyph description")
+@router.patch("/{glyph_id}", response_model=GlyphResponse, summary="Update glyph fields")
 async def update_glyph(
     glyph_id: int = Path(..., ge=0, le=143_999),
     body: GlyphUpdateRequest = ...,
 ):
     try:
-        g = registry.update_glyph(glyph_id, body.description)
+        raw = body.model_dump(exclude_none=True)
+        payload_fields = _PAYLOAD_FIELDS
+        updates = {
+            k: (GlyphPayload(**v) if k in payload_fields else v)
+            for k, v in raw.items()
+        }
+        g = registry.update_glyph(glyph_id, **updates)
         return _to_response(g)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @router.delete("/{glyph_id}", status_code=204, summary="Delete a glyph")

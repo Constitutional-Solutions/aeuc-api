@@ -110,10 +110,10 @@ class GlyphRegistry:
             (3, "CTX_HARMONIC",   "Harmonics-dominant context"),
             (4, "CTX_PROTOCOL",   "Protocol state context"),
             (5, "CTX_STORY",      "Narrative / story context"),
-            (6, "CTX_EVOLUTION",  "Consciousness evolution context"),
-            (7, "CTX_SYNTHESIS",  "Co-creation synthesis context"),
-            (8, "CTX_ARCHIVE",    "Long-term archive / cold-storage context"),
-            (9, "CTX_SOVEREIGN",  "Sovereign override context"),
+            (6, "CTX_TEMPORAL",   "Temporal / chronos context"),
+            (7, "CTX_SYMBOLIC",   "Symbolic / glyph-language context"),
+            (8, "CTX_BIOMETRIC",  "Biometric / sensor context"),
+            (9, "CTX_SOVEREIGN",  "Sovereign / governance context"),
         ]
         for oid, code, desc in defaults:
             self.outer_contexts[oid] = OuterContext(outer_id=oid, code=code, description=desc)
@@ -128,13 +128,12 @@ class GlyphRegistry:
         )
         self.current_hash = hashlib.blake2b(content.encode(), digest_size=32).hexdigest()
 
-    def _audit(self, action: str, **kwargs):
-        old = self.current_hash
+    def _audit(self, action: str, old_hash: str, **kwargs):
         self._update_hash()
         self.change_history.append({
             "action":      action,
             "timestamp":   datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "hash_before": old,
+            "hash_before": old_hash,
             "hash_after":  self.current_hash,
             **kwargs,
         })
@@ -148,26 +147,57 @@ class GlyphRegistry:
             raise ValueError(f"Glyph ID {glyph.id} already exists")
         if glyph.code in self.code_to_id:
             raise ValueError(f"Glyph code '{glyph.code}' already exists")
+        old_hash = self.current_hash
         self.glyphs_144k[glyph.id] = glyph
         self.code_to_id[glyph.code] = glyph.id
         self.category_index[glyph.category].append(glyph.id)
-        self._audit("ADD_GLYPH", glyph_id=glyph.id, code=glyph.code)
+        self._audit("ADD_GLYPH", old_hash=old_hash, glyph_id=glyph.id, code=glyph.code)
         return glyph.id
 
-    def update_glyph(self, glyph_id: int, description: str) -> Glyph144k:
+    _MUTABLE_FIELDS = frozenset({
+        "code", "description", "category",
+        "geometry_payload", "harmonic_payload", "protocol_payload", "version",
+    })
+
+    def update_glyph(self, glyph_id: int, **updates) -> Glyph144k:
         if glyph_id not in self.glyphs_144k:
             raise KeyError(f"Glyph ID {glyph_id} not found")
-        self.glyphs_144k[glyph_id].description = description
-        self._audit("UPDATE_GLYPH", glyph_id=glyph_id)
-        return self.glyphs_144k[glyph_id]
+        unknown = set(updates) - self._MUTABLE_FIELDS
+        if unknown:
+            raise ValueError(f"Immutable or unknown fields: {sorted(unknown)}")
+        old_hash = self.current_hash
+        glyph = self.glyphs_144k[glyph_id]
+        if "code" in updates:
+            new_code = updates.pop("code")
+            if new_code != glyph.code:
+                if new_code in self.code_to_id:
+                    raise ValueError(f"Glyph code '{new_code}' already exists")
+                self.code_to_id.pop(glyph.code, None)
+                self.code_to_id[new_code] = glyph_id
+                glyph.code = new_code
+        if "category" in updates:
+            try:
+                new_cat = GlyphCategory(updates.pop("category"))
+            except ValueError:
+                valid = [c.value for c in GlyphCategory]
+                raise ValueError(f"Invalid category; must be one of {valid}")
+            if new_cat != glyph.category:
+                self.category_index[glyph.category].remove(glyph_id)
+                self.category_index[new_cat].append(glyph_id)
+                glyph.category = new_cat
+        for attr, value in updates.items():
+            setattr(glyph, attr, value)
+        self._audit("UPDATE_GLYPH", old_hash=old_hash, glyph_id=glyph_id)
+        return glyph
 
     def delete_glyph(self, glyph_id: int) -> bool:
         if glyph_id not in self.glyphs_144k:
             raise KeyError(f"Glyph ID {glyph_id} not found")
+        old_hash = self.current_hash
         g = self.glyphs_144k.pop(glyph_id)
         self.code_to_id.pop(g.code, None)
         self.category_index[g.category].remove(glyph_id)
-        self._audit("DELETE_GLYPH", glyph_id=glyph_id, code=g.code)
+        self._audit("DELETE_GLYPH", old_hash=old_hash, glyph_id=glyph_id, code=g.code)
         return True
 
     def get_glyph(self, glyph_id: int) -> Optional[Glyph144k]:
@@ -190,8 +220,9 @@ class GlyphRegistry:
     def add_context(self, ctx: OuterContext) -> int:
         if ctx.outer_id in self.outer_contexts:
             raise ValueError(f"Context outer_id {ctx.outer_id} already exists")
+        old_hash = self.current_hash
         self.outer_contexts[ctx.outer_id] = ctx
-        self._audit("ADD_CONTEXT", outer_id=ctx.outer_id, code=ctx.code)
+        self._audit("ADD_CONTEXT", old_hash=old_hash, outer_id=ctx.outer_id, code=ctx.code)
         return ctx.outer_id
 
     def get_context(self, outer_id: int) -> Optional[OuterContext]:

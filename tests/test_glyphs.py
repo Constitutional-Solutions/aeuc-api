@@ -59,6 +59,32 @@ def test_update_glyph():
     assert r.json()["description"] == "updated description"
 
 
+def test_update_glyph_multiple_fields():
+    client.post("/glyphs", json={"id": 11, "code": "MULTI", "category": "SPECIAL", "description": "orig"})
+    r = client.patch("/glyphs/11", json={"description": "new desc", "version": "2.0.0"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["description"] == "new desc"
+
+
+def test_update_glyph_unknown_field_rejected():
+    client.post("/glyphs", json={"id": 12, "code": "UNK", "category": "SPECIAL", "description": "x"})
+    r = client.patch("/glyphs/12", json={"nonexistent_field": "value"})
+    assert r.status_code == 422
+
+
+def test_audit_hash_before_captured_before_mutation():
+    """hash_before in an audit entry must equal the hash from just before the mutation."""
+    registry.change_history.clear()
+    registry._update_hash()
+    hash_before_add = registry.current_hash
+    client.post("/glyphs", json={"id": 70, "code": "AUDIT_TEST", "category": "SPECIAL", "description": "y"})
+    entry = registry.change_history[-1]
+    assert entry["hash_before"] == hash_before_add
+    assert entry["hash_after"] != hash_before_add
+    assert entry["hash_after"] == registry.current_hash
+
+
 def test_delete_glyph():
     client.post("/glyphs", json={"id": 20, "code": "DEL", "category": "SPECIAL", "description": "to delete"})
     r = client.delete("/glyphs/20")
